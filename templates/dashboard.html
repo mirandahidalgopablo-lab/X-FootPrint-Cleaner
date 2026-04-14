@@ -1,20 +1,62 @@
 {% extends "layout.html" %}
 {% block content %}
-    <h3>Paso 2: Sube tu archivo y filtra</h3>
-    <form action="/analyze" method="post" enctype="multipart/form-data">
-        <label><b>1. Tu archivo de X:</b></label>
-        <p><i>Sube el archivo tweets.json que solicitaste a Twitter. Este archivo solo se leerá en memoria y no será guardado.</i></p>
+
+<div class="step-label">Paso 02</div>
+<h1>Configura el analisis</h1>
+<p class="mt-1" style="margin-bottom: 2.5rem;">Ningun campo es obligatorio. Si dejas todo en blanco, el sistema buscara solo por palabras clave.</p>
+
+<form action="/analyze" method="post" enctype="multipart/form-data">
+
+    <div class="card">
+        <label>Archivo de datos de X</label>
+        <p style="font-size: 0.82rem; margin-bottom: 1rem;">
+            Descarga tu historial desde <strong style="color: var(--text);">Configuracion de X &rarr; Tu cuenta &rarr; Descargar tus datos</strong>.
+            Dentro del .zip, busca el archivo <code style="font-family: var(--font-mono); color: var(--accent); font-size: 0.82rem;">tweets.js</code>, abrelo con el Bloc de Notas, borra la primera linea (la que empieza por <code style="font-family: var(--font-mono); color: var(--accent); font-size: 0.82rem;">window.YTD</code>) y guardalo como <code style="font-family: var(--font-mono); color: var(--accent); font-size: 0.82rem;">tweets.json</code>.
+        </p>
         <input type="file" name="archivo_tweets" accept=".json" required>
-        
-        <br><br><label><b>2. Filtros Dinámicos:</b></label>
-        <input type="text" name="palabra" placeholder="Buscar palabra exacta...">
-        
-        <p>Temas:</p>
-        <input type="checkbox" name="temas" value="Racismo"> Racismo
-        <input type="checkbox" name="temas" value="Machismo"> Machismo
-        <input type="checkbox" name="temas" value="Homofobia"> Homofobia
-        
-        <br><br>
-        <button type="submit">🔍 Analizar Memoria</button>
-    </form>
+    </div>
+
+    <div class="card">
+        <label>Palabra o frase especifica (opcional)</label>
+        <input type="text" name="palabra" placeholder="Ej: insulto, politica, nombre...">
+    </div>
+
+    <div class="card">
+        <label>Categorias a detectar (opcional)</label>
+        <p style="font-size: 0.82rem; margin-bottom: 1rem;">Marca los temas que quieras que el filtro tenga en cuenta al analizar tu historial.</p>
+        <div class="checkbox-grid">
+            <label class="checkbox-item">
+                <input type="checkbox" name="temas" value="Racismo">
+                <span>Racismo</span>
+            </label>
+            <label class="checkbox-item">
+                <input type="checkbox" name="temas" value="Islamofobia">
+                <span>Islamofobia</span>
+            </label>
+            <label class="checkbox-item">
+                <input type="checkbox" name="temas" value="Machismo">
+                <span>Machismo</span>
+            </label>
+            <label class="checkbox-item">
+                <input type="checkbox" name="temas" value="Antisemitismo">
+                <span>Antisemitismo</span>
+            </label>
+            <label class="checkbox-item">
+                <input type="checkbox" name="temas" value="Homofobia">
+                <span>Homofobia</span>
+            </label>
+            <label class="checkbox-item">
+                <input type="checkbox" name="temas" value="Nazismo">
+                <span>Nazismo</span>
+            </label>
+        </div>
+    </div>
+
+    <div class="flex-gap mt-3">
+        <button type="submit" class="btn btn-primary">Analizar archivo</button>
+        <a href="/" class="btn btn-ghost">Volver</a>
+    </div>
+
+</form>
+
 {% endblock %}
