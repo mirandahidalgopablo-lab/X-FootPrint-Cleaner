@@ -29,6 +29,7 @@ oauth2_handler = tweepy.OAuth2UserHandler(
 def analizar_lote_con_ia(tweets_lote, temas):
     if not GEMINI_API_KEY:
         return [], "Sin clave GEMINI_API_KEY configurada"
+
     modelo = genai.GenerativeModel("gemini-1.5-flash")
 
     lista_tweets = ""
@@ -92,6 +93,7 @@ def analyze():
             if palabra in tw["texto"].lower():
                 polemicos.append({"id": tw["id"], "texto": tw["texto"], "motivo": f"Palabra clave: {palabra}"})
         return render_template("resultados.html", polemicos=polemicos)
+
     TAMANO_LOTE = 15
     ids_polemicos_total = []
     error_ia = None
