@@ -4,7 +4,13 @@
 <div class="step-label">Paso 03</div>
 <h1>Revision de resultados</h1>
 
-{% if polemicos %}
+{% if error %}
+<div class="alert" style="background: rgba(255,68,68,0.08); border: 1px solid rgba(255,68,68,0.3); color: var(--danger); margin-top: 1.5rem;">
+    <strong>Error de la IA:</strong> {{ error }}
+</div>
+<a href="/dashboard" class="btn btn-ghost" style="margin-top: 1rem;">Volver al panel</a>
+
+{% elif polemicos %}
 
 <div class="stats-row mt-3">
     <div class="stat-box">
@@ -47,7 +53,7 @@
 {% else %}
 
 <div class="alert alert-success mt-3">
-    No se encontraron tweets con los filtros seleccionados.
+    No se detectaron tweets problematicos con los filtros seleccionados.
 </div>
 
 <a href="/dashboard" class="btn btn-ghost">Volver al panel</a>
