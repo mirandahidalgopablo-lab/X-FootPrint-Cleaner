@@ -6,25 +6,19 @@ from flask import Flask, redirect, url_for, session, request, render_template
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 app = Flask(__name__)
-
-# --- SEGURIDAD 4: Proxy Fix para servidores (Render) ---
-# Le dice a Flask que confíe en el HTTPS que proporciona el servidor de Render
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
-# --- SEGURIDAD 1: Variables de Entorno (Ocultar Secretos) ---
 app.secret_key = os.environ.get("SECRET_KEY", "clave_super_secreta_local")
 CLIENT_ID = os.environ.get("CLIENT_ID")
 CLIENT_SECRET = os.environ.get("CLIENT_SECRET")
-# En Render pondrás tu URL pública, en local usará 127.0.0.1
+
 REDIRECT_URI = os.environ.get("REDIRECT_URI", "http://127.0.0.1:5000/callback")
 
-# --- SEGURIDAD 3: HTTPS y Cookies ---
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 
 if REDIRECT_URI.startswith("https"):
     app.config['SESSION_COOKIE_SECURE'] = True
 else:
-
     os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
 oauth2_handler = tweepy.OAuth2UserHandler(
@@ -37,7 +31,6 @@ oauth2_handler = tweepy.OAuth2UserHandler(
 @app.route('/')
 def index():
     login_url = oauth2_handler.get_authorization_url()
-
     return render_template('index.html', login_url=login_url)
 
 @app.route('/callback')
