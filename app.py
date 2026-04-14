@@ -25,8 +25,7 @@ oauth2_handler = tweepy.OAuth2UserHandler(
     client_id=CLIENT_ID,
     redirect_uri=REDIRECT_URI,
     scope=["tweet.read", "tweet.write", "users.read", "offline.access"],
-    client_secret=CLIENT_SECRET,
-    state="estado_seguro_fijo_123"
+    client_secret=CLIENT_SECRET
 )
 
 @app.route('/')
