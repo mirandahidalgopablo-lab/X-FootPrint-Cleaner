@@ -3,6 +3,7 @@ import json
 import tweepy
 import time
 import google.generativeai as genai
+from google.generativeai.types import HarmCategory, HarmBlockThreshold
 from flask import Flask, redirect, url_for, session, request, render_template
 from werkzeug.middleware.proxy_fix import ProxyFix
 
@@ -34,27 +35,35 @@ def analizar_lote_con_ia(tweets_lote, temas):
 
     lista_tweets = ""
     for tw in tweets_lote:
-        lista_tweets += f'ID:{tw["id"]} | TEXTO: {tw["texto"]}\n'
+        lista_tweets += f'ID:"{tw["id"]}" | TEXTO: {tw["texto"]}\n'
 
     if temas:
         criterio = f"contenido relacionado con: {', '.join(temas)}"
     else:
         criterio = "cualquier contenido ofensivo, toxico, agresivo, discriminatorio, machista, racista, homofobico o claramente polemico"
 
-    prompt = f"""Eres un auditor de reputacion digital. Analiza los siguientes tweets y devuelve UNICAMENTE un array JSON con los IDs de los tweets que contienen {criterio}.
+    prompt = f"""Eres un auditor de reputacion digital. Analiza los siguientes tweets y devuelve UNICAMENTE un array de strings con los IDs de los tweets que contienen {criterio}.
 
 Si un tweet es completamente normal e inocente, NO lo incluyas. Solo incluye los problematicos.
-
-Responde SOLO con el array JSON, sin explicaciones, sin markdown, sin texto adicional. Ejemplo de respuesta valida: ["123","456"]
-Si no hay ninguno problematico responde con: []
+Responde estrictamente con el array JSON. Ejemplo: ["123", "456"]. Si no hay ninguno, responde: []
 
 Tweets a analizar:
 {lista_tweets}"""
 
     try:
-        respuesta = modelo.generate_content(prompt)
+        # Usamos el modo JSON nativo y apagamos la censura
+        respuesta = modelo.generate_content(
+            prompt,
+            generation_config={"response_mime_type": "application/json"},
+            safety_settings={
+                HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
+                HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
+                HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
+                HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
+            }
+        )
+        
         texto = respuesta.text.strip()
-        texto = texto.replace("```json", "").replace("```", "").strip()
         ids_polemicos = json.loads(texto)
         return ids_polemicos, None
     except Exception as e:
@@ -141,10 +150,12 @@ def analyze():
     etiqueta = f"Detectado por IA ({', '.join(temas)})" if temas else "Detectado por IA (contenido toxico)"
 
     for id_pol in ids_polemicos_total:
-        if id_pol in mapa_tweets:
+        # ARREGLO DEL BUG: Forzamos que el ID sea texto (string) para que coincida con el JSON de X
+        id_str_seguro = str(id_pol) 
+        if id_str_seguro in mapa_tweets:
             polemicos.append({
-                "id": id_pol,
-                "texto": mapa_tweets[id_pol],
+                "id": id_str_seguro,
+                "texto": mapa_tweets[id_str_seguro],
                 "motivo": etiqueta
             })
 
