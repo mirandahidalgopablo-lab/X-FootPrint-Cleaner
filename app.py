@@ -3,6 +3,7 @@ import json
 import tweepy
 import time
 import google.generativeai as genai
+from google.generativeai.types import HarmCategory, HarmBlockThreshold
 from flask import Flask, redirect, url_for, session, request, render_template
 from werkzeug.middleware.proxy_fix import ProxyFix
 
@@ -74,17 +75,27 @@ def analyze():
         else:
             try:
                 if not palabra and not temas:
-                    prompt = f"Analiza si este tweet es ofensivo, tóxico, agresivo o inapropiado. Responde solo con la palabra SI o la palabra NO: '{texto}'"
+                    prompt = f"Eres un auditor imparcial. Analiza si este tweet es ofensivo, tóxico, agresivo, machista, racista o inapropiado. Responde solo con la palabra SI o la palabra NO: '{texto}'"
                 else:
-                    prompt = f"¿Este tweet tiene un tono de {', '.join(temas)}? Responde solo con la palabra SI o la palabra NO: '{texto}'"
+                    prompt = f"Eres un auditor imparcial. ¿Este tweet tiene un tono de {', '.join(temas)}? Responde solo con la palabra SI o la palabra NO: '{texto}'"
+            
+                response = ia_model.generate_content(
+                    prompt,
+                    safety_settings={
+                        HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
+                        HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
+                        HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
+                        HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
+                    }
+                )
                 
-                response = ia_model.generate_content(prompt)
                 if "SI" in response.text.upper():
                     es_polemico = True
                     motivo = "Auditado por IA"
                 
                 time.sleep(4)
-            except:
+            except Exception as e:
+                print(f"Error IA: {e}")
                 time.sleep(4)
                 continue
 
