@@ -1,0 +1,21 @@
+{% extends "layout.html" %}
+{% block content %}
+    <h3>Paso 3: Revisión ({{ polemicos|length }} encontrados)</h3>
+    <form action='/delete' method='post'>
+        {% for p in polemicos %}
+        <div style="border: 1px solid #444; padding: 10px; margin-bottom: 5px; border-radius: 5px;">
+            <input type="checkbox" name="ids_borrar" value="{{ p.id }}" checked> 
+            <b>{{ p.motivo }}:</b> 
+            <i>{{ p.texto }}</i>
+        </div>
+        {% else %}
+        <p>No se encontraron tweets polémicos con esos filtros.</p>
+        {% endfor %}
+        
+        <br>
+        {% if polemicos %}
+        <button type='submit' style='background: #cc0000; color: white;'>🗑️ Borrar Seleccionados Permanentemente</button>
+        {% endif %}
+    </form>
+    <br><a href='/dashboard'>Volver al panel</a>
+{% endblock %}
