@@ -28,9 +28,10 @@ oauth2_handler = tweepy.OAuth2UserHandler(
 
 def analizar_lote_con_ia(tweets_lote, temas):
     if not GEMINI_API_KEY:
-        return [], "Sin clave GEMINI_API_KEY configurada"
+        return [], "Falta GEMINI_API_KEY"
 
-    modelo = genai.GenerativeModel("models/gemini-1.5-flash")
+    # CAMBIO CRÍTICO: Usamos la versión Pro que tiene endpoints más estables
+    modelo = genai.GenerativeModel("gemini-1.5-pro")
 
     lista_tweets = ""
     for tw in tweets_lote:
@@ -50,11 +51,15 @@ def analizar_lote_con_ia(tweets_lote, temas):
             safety_settings={
                 HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
                 HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
+                HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
+                HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
             }
         )
-        return json.loads(respuesta.text.strip()), None
+        # Limpiamos y parseamos la respuesta
+        ids_raw = json.loads(respuesta.text.strip())
+        return [str(i) for i in ids_raw], None
     except Exception as e:
-        return [], f"Error técnico de IA: {str(e)}"
+        return [], f"Fallo en modelo Pro: {str(e)}"
 
 @app.route("/")
 def index():
@@ -64,7 +69,7 @@ def index():
 @app.route("/callback")
 def callback():
     try:
-        url_segura = request.url.replace("http:", "https:", 1) if REDIRECT_URI and REDIRECT_URI.startswith("https") else request.url
+        url_segura = request.url.replace("http:", "https:", 1) if REDIRECT_URI.startswith("https") else request.url
         access_token = oauth2_handler.fetch_token(url_segura)
         session["token"] = access_token
         return redirect(url_for("dashboard"))
@@ -94,7 +99,8 @@ def analyze():
                 polemicos.append({"id": tw["id"], "texto": tw["texto"], "motivo": f"Palabra clave: {palabra}"})
         return render_template("resultados.html", polemicos=polemicos)
 
-    TAMANO_LOTE = 15
+    # Lotes pequeños para no agotar la cuota del modelo Pro (que es más estricta)
+    TAMANO_LOTE = 10
     ids_polemicos_total = []
     error_ia = None
 
@@ -105,13 +111,13 @@ def analyze():
             error_ia = error
             break
         ids_polemicos_total.extend(ids)
-        time.sleep(6) 
+        if i + TAMANO_LOTE < len(todos_los_tweets):
+            time.sleep(8) # Pausa más larga para el modelo Pro
 
     mapa_tweets = {tw["id"]: tw["texto"] for tw in todos_los_tweets}
     for id_pol in ids_polemicos_total:
-        id_s = str(id_pol)
-        if id_s in mapa_tweets:
-            polemicos.append({"id": id_s, "texto": mapa_tweets[id_s], "motivo": "Detectado por IA"})
+        if id_pol in mapa_tweets:
+            polemicos.append({"id": id_pol, "texto": mapa_tweets[id_pol], "motivo": "Detectado por IA"})
 
     return render_template("resultados.html", polemicos=polemicos, error=error_ia)
 
