@@ -30,7 +30,7 @@ def analizar_lote_con_ia(tweets_lote, temas):
     if not GEMINI_API_KEY:
         return [], "Sin clave GEMINI_API_KEY configurada"
 
-    modelo = genai.GenerativeModel("gemini-1.5-flash")
+    modelo = genai.GenerativeModel("models/gemini-1.5-flash")
 
     lista_tweets = ""
     for tw in tweets_lote:
@@ -54,7 +54,7 @@ def analizar_lote_con_ia(tweets_lote, temas):
         )
         return json.loads(respuesta.text.strip()), None
     except Exception as e:
-        return [], str(e)
+        return [], f"Error técnico de IA: {str(e)}"
 
 @app.route("/")
 def index():
@@ -64,7 +64,7 @@ def index():
 @app.route("/callback")
 def callback():
     try:
-        url_segura = request.url.replace("http:", "https:", 1) if REDIRECT_URI.startswith("https") else request.url
+        url_segura = request.url.replace("http:", "https:", 1) if REDIRECT_URI and REDIRECT_URI.startswith("https") else request.url
         access_token = oauth2_handler.fetch_token(url_segura)
         session["token"] = access_token
         return redirect(url_for("dashboard"))
@@ -137,4 +137,4 @@ def logout():
     return redirect(url_for("index"))
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 5000)))
