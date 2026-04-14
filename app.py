@@ -15,8 +15,10 @@ CLIENT_ID = os.environ.get("CLIENT_ID")
 CLIENT_SECRET = os.environ.get("CLIENT_SECRET")
 REDIRECT_URI = os.environ.get("REDIRECT_URI")
 
-genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
-ia_model = genai.GenerativeModel('gemini-1.5-flash')
+api_key_ia = os.environ.get("GEMINI_API_KEY")
+if api_key_ia:
+    genai.configure(api_key=api_key_ia)
+    ia_model = genai.GenerativeModel('gemini-1.5-flash')
 
 oauth2_handler = tweepy.OAuth2UserHandler(
     client_id=CLIENT_ID,
@@ -40,7 +42,7 @@ def callback():
         session['token'] = access_token
         return redirect(url_for('dashboard'))
     except Exception as e:
-        return f"Error: {e}"
+        return f"Error login: {e}"
 
 @app.route('/dashboard')
 def dashboard():
@@ -64,7 +66,6 @@ def analyze():
         t = item.get('tweet', {})
         texto = t.get('full_text', '')
         id_tweet = t.get('id_str')
-        
         es_polemico = False
         motivo = ""
 
@@ -72,31 +73,29 @@ def analyze():
             es_polemico = True
             motivo = f"Palabra clave: {palabra}"
         
-        else:
+        elif api_key_ia:
             try:
-                if not palabra and not temas:
-                    prompt = f"Eres un auditor imparcial. Analiza si este tweet es ofensivo, tóxico, agresivo, machista, racista o inapropiado. Responde solo con la palabra SI o la palabra NO: '{texto}'"
+                if not temas:
+                    prompt = f"Eres un auditor. Responde solo SI o NO. ¿Este tweet es ofensivo, tóxico, agresivo o discriminatorio?: '{texto}'"
+                    etiqueta = "Detectado por IA (Tóxico)"
                 else:
-                    prompt = f"Eres un auditor imparcial. ¿Este tweet tiene un tono de {', '.join(temas)}? Responde solo con la palabra SI o la palabra NO: '{texto}'"
-            
+                    prompt = f"Eres un auditor. Responde solo SI o NO. ¿Este tweet es {', '.join(temas)}?: '{texto}'"
+                    etiqueta = "Detectado por IA (Filtros)"
+
                 response = ia_model.generate_content(
                     prompt,
                     safety_settings={
                         HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
                         HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
-                        HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
-                        HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
                     }
                 )
-                
                 if "SI" in response.text.upper():
                     es_polemico = True
-                    motivo = "Auditado por IA"
-                
-                time.sleep(4)
+                    motivo = etiqueta
+                time.sleep(1.5)
             except Exception as e:
-                print(f"Error IA: {e}")
-                time.sleep(4)
+                print(f"DEBUG IA ERROR: {e}")
+                time.sleep(1.5)
                 continue
 
         if es_polemico:
@@ -110,18 +109,14 @@ def delete():
     ids = request.form.getlist('ids_borrar')
     token_data = session['token']
     access_token = token_data.get('access_token') if isinstance(token_data, dict) else token_data
-    
     client = tweepy.Client(access_token=access_token, consumer_key=CLIENT_ID, consumer_secret=CLIENT_SECRET)
-    
     borrados, errores = 0, 0
     for tid in ids:
         try:
             client.delete_tweet(tid)
             borrados += 1
             time.sleep(0.5)
-        except:
-            errores += 1
-            
+        except: errores += 1
     return render_template('resultados_borrado.html', borrados=borrados, errores=errores)
 
 @app.route('/logout')
