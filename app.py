@@ -30,7 +30,6 @@ def analizar_lote_con_ia(tweets_lote, temas):
     if not GEMINI_API_KEY:
         return [], "Sin clave API configurada"
 
-    # CAMBIO: Forzamos el modelo 1.5-flash, el más generoso en cuota gratuita
     modelo = genai.GenerativeModel("gemini-1.5-flash")
 
     lista_tweets = ""
@@ -55,7 +54,6 @@ def analizar_lote_con_ia(tweets_lote, temas):
         )
         return json.loads(respuesta.text.strip()), None
     except Exception as e:
-        # Detectamos si es un error de cuota para avisarte
         if "429" in str(e):
             return [], "LIMITE_EXCEDIDO"
         return [], str(e)
@@ -89,7 +87,7 @@ def analyze():
     if not archivo: return "Error: sube un archivo", 400
 
     datos = json.load(archivo)
-    # IMPORTANTE: Procesamos maximo 30 tweets para no superar el tiempo de Render (60s)
+
     todos_los_tweets = [{"id": i.get("tweet",{}).get("id_str"), "texto": i.get("tweet",{}).get("full_text", "")} 
                         for i in datos if i.get("tweet",{}).get("id_str")][:30]
 
@@ -100,7 +98,6 @@ def analyze():
                 polemicos.append({"id": tw["id"], "texto": tw["texto"], "motivo": f"Palabra: {palabra}"})
         return render_template("resultados.html", polemicos=polemicos)
 
-    # Lotes pequeños (10 tweets) y espera de 8 segundos para no "quemar" la API
     TAMANO_LOTE = 10
     ids_polemicos_total = []
     error_ia = None
