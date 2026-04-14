@@ -25,35 +25,45 @@ oauth2_handler = tweepy.OAuth2UserHandler(
     client_secret=CLIENT_SECRET
 )
 
+def obtener_modelo_valido():
+    try:
+        modelos = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+        # Prioridad: Flash 1.5 -> Pro 1.5 -> Cualquier otro
+        for m in modelos:
+            if "gemini-1.5-flash" in m: return m
+        for m in modelos:
+            if "gemini-1.5-pro" in m: return m
+        return modelos[0] if modelos else None
+    except:
+        return "gemini-1.5-flash"
+
 def analizar_lote_con_ia(tweets_lote, temas):
     if not GEMINI_API_KEY:
-        return [], "Sin clave GEMINI_API_KEY configurada."
+        return [], "Sin clave GEMINI_API_KEY"
+
+    nombre_modelo = obtener_modelo_valido()
+    modelo = genai.GenerativeModel(nombre_modelo)
+
+    lista_tweets = ""
+    for tw in tweets_lote:
+        lista_tweets += f'ID:{tw["id"]} | TEXTO: {tw["texto"]}\n'
+
+    criterio = f"contenido relacionado con: {', '.join(temas)}" if temas else "contenido ofensivo, toxico o polemico"
+
+    prompt = f"""Analiza estos tweets y devuelve UNICAMENTE un array JSON con los IDs de los que contienen {criterio}.
+    Responde SOLO el array JSON, sin texto adicional. Ejemplo: ["123", "456"]. Si no hay nada: []
+    
+    Tweets:
+    {lista_tweets}"""
 
     try:
-        model = genai.GenerativeModel("gemini-1.5-flash")
-        
-        lista_tweets = ""
-        for tw in tweets_lote:
-            lista_tweets += f'ID:{tw["id"]} | TEXTO: {tw["texto"]}\n'
-
-        criterio = f"contenido relacionado con: {', '.join(temas)}" if temas else "contenido ofensivo, toxico o polemico"
-
-        prompt = f"""Analiza estos tweets y devuelve UNICAMENTE un array JSON con los IDs de los que contienen {criterio}.
-        Solo devuelve el JSON, ejemplo: ["123", "456"]. Si no hay ninguno, responde: []
-        
-        Tweets:
-        {lista_tweets}"""
-
-        response = model.generate_content(prompt)
-        texto = response.text.strip().replace("```json", "").replace("```", "").strip()
-        return json.loads(texto), None
-
+        respuesta = modelo.generate_content(prompt)
+        # Limpieza agresiva de la respuesta para evitar errores de formato
+        texto = respuesta.text.strip().replace("```json", "").replace("```", "").strip()
+        ids_polemicos = json.loads(texto)
+        return [str(i) for i in ids_polemicos], None
     except Exception as e:
-        try:
-            modelos = [m.name for m in genai.list_models()]
-            return [], f"Error: {str(e)}. Modelos disponibles en tu cuenta: {modelos}"
-        except:
-            return [], f"Error de conexion con la IA: {str(e)}"
+        return [], f"Error con modelo {nombre_modelo}: {str(e)}"
 
 @app.route("/")
 def index():
@@ -74,79 +84,68 @@ def callback():
 
 @app.route("/dashboard")
 def dashboard():
-    if "token" not in session:
-        return redirect(url_for("index"))
+    if "token" not in session: return redirect(url_for("index"))
     return render_template("dashboard.html")
 
 @app.route("/analyze", methods=["POST"])
 def analyze():
-    if "token" not in session:
-        return redirect(url_for("index"))
+    if "token" not in session: return redirect(url_for("index"))
 
     palabra = request.form.get("palabra", "").strip().lower()
     temas = request.form.getlist("temas")
     archivo = request.files.get("archivo_tweets")
 
-    if not archivo:
-        return "Error: sube un archivo .json", 400
+    if not archivo: return "Error: sube un archivo .json", 400
 
     datos = json.load(archivo)
-    todos_los_tweets = []
-    for item in datos:
-        t = item.get("tweet", {})
-        texto = t.get("full_text", "")
-        id_tweet = t.get("id_str")
-        if texto and id_tweet:
-            todos_los_tweets.append({"id": id_tweet, "texto": texto})
+    todos_los_tweets = [{"id": i.get("tweet",{}).get("id_str"), "texto": i.get("tweet",{}).get("full_text", "")} 
+                        for i in datos if i.get("tweet",{}).get("id_str")]
 
     polemicos = []
 
+    # Búsqueda manual rápida
     if palabra:
         for tw in todos_los_tweets:
             if palabra in tw["texto"].lower():
-                polemicos.append({"id": tw["id"], "texto": tw["texto"], "motivo": f"Palabra clave: {palabra}"})
-        return render_template("resultados.html", polemicos=polemicos, error=None)
+                polemicos.append({"id": tw["id"], "texto": tw["texto"], "motivo": f"Palabra: {palabra}"})
+        return render_template("resultados.html", polemicos=polemicos)
 
-    TAMANO_LOTE = 25
-    ids_polemicos_total = []
+    # Análisis por lotes IA
+    TAMANO_LOTE = 20
+    ids_encontrados_total = []
     error_ia = None
 
     for i in range(0, len(todos_los_tweets), TAMANO_LOTE):
         lote = todos_los_tweets[i:i + TAMANO_LOTE]
-        ids_encontrados, error = analizar_lote_con_ia(lote, temas)
+        ids, error = analizar_lote_con_ia(lote, temas)
         if error:
             error_ia = error
             break
-        ids_polemicos_total.extend(ids_encontrados)
-        if i + TAMANO_LOTE < len(todos_los_tweets):
-            time.sleep(5)
+        ids_encontrados_total.extend(ids)
+        time.sleep(3)
 
     mapa_tweets = {tw["id"]: tw["texto"] for tw in todos_los_tweets}
-    etiqueta = "Detectado por IA"
-
-    for id_pol in ids_polemicos_total:
-        id_str = str(id_pol)
-        if id_str in mapa_tweets:
-            polemicos.append({"id": id_str, "texto": mapa_tweets[id_str], "motivo": etiqueta})
+    for id_pol in ids_encontrados_total:
+        if id_pol in mapa_tweets:
+            polemicos.append({"id": id_pol, "texto": mapa_tweets[id_pol], "motivo": "Detectado por IA"})
 
     return render_template("resultados.html", polemicos=polemicos, error=error_ia)
 
 @app.route("/delete", methods=["POST"])
 def delete():
-    if "token" not in session:
-        return redirect(url_for("index"))
+    if "token" not in session: return redirect(url_for("index"))
     ids = request.form.getlist("ids_borrar")
     token_data = session["token"]
     access_token = token_data.get("access_token") if isinstance(token_data, dict) else token_data
     client = tweepy.Client(access_token=access_token, consumer_key=CLIENT_ID, consumer_secret=CLIENT_SECRET)
+    
     borrados, errores = 0, 0
     for tid in ids:
         try:
             client.delete_tweet(tid)
             borrados += 1
-            time.sleep(0.4)
-        except:
-            errores += 1
+            time.sleep(0.3)
+        except: errores += 1
     return render_template("resultado_borrado.html", borrados=borrados, errores=errores)
 
 @app.route("/logout")
