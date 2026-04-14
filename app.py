@@ -48,7 +48,7 @@ def dashboard():
 def analyze():
     if 'token' not in session: return redirect(url_for('index'))
 
-    palabra = request.form.get('palabra', '').lower()
+    palabra = request.form.get('palabra', '').strip().lower()
     temas = request.form.getlist('temas')
     archivo = request.files.get('archivo_tweets')
 
