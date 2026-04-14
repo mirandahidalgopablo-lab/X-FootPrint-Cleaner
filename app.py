@@ -3,7 +3,6 @@ import json
 import tweepy
 import time
 import google.generativeai as genai
-from google.generativeai.types import HarmCategory, HarmBlockThreshold
 from flask import Flask, redirect, url_for, session, request, render_template
 from werkzeug.middleware.proxy_fix import ProxyFix
 
@@ -15,7 +14,6 @@ CLIENT_ID = os.environ.get("CLIENT_ID")
 CLIENT_SECRET = os.environ.get("CLIENT_SECRET")
 REDIRECT_URI = os.environ.get("REDIRECT_URI")
 
-# CONFIGURACIÓN REFORZADA
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
@@ -29,37 +27,33 @@ oauth2_handler = tweepy.OAuth2UserHandler(
 
 def analizar_lote_con_ia(tweets_lote, temas):
     if not GEMINI_API_KEY:
-        return [], "Falta GEMINI_API_KEY"
-
-    # Probamos con el nombre base sin prefijos
-    modelo = genai.GenerativeModel("gemini-1.5-flash")
-
-    lista_tweets = ""
-    for tw in tweets_lote:
-        lista_tweets += f'ID:{tw["id"]} TEXTO:{tw["texto"]}\n'
-
-    criterio = f"contenido de {', '.join(temas)}" if temas else "contenido toxico o polemico"
-
-    prompt = f"""Analiza estos tweets y devuelve SOLO un array JSON con los IDs de los que sean {criterio}.
-    Si no hay ninguno, devuelve []. No escribas nada mas que el JSON.
-    Tweets:
-    {lista_tweets}"""
+        return [], "Sin clave GEMINI_API_KEY configurada."
 
     try:
-        # Quitamos el response_mime_type temporalmente para maximizar compatibilidad
-        respuesta = modelo.generate_content(
-            prompt,
-            safety_settings={
-                HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
-                HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
-            }
-        )
+        model = genai.GenerativeModel("gemini-1.5-flash")
         
-        texto_limpio = respuesta.text.strip().replace("```json", "").replace("```", "").strip()
-        ids_raw = json.loads(texto_limpio)
-        return [str(i) for i in ids_raw], None
+        lista_tweets = ""
+        for tw in tweets_lote:
+            lista_tweets += f'ID:{tw["id"]} | TEXTO: {tw["texto"]}\n'
+
+        criterio = f"contenido relacionado con: {', '.join(temas)}" if temas else "contenido ofensivo, toxico o polemico"
+
+        prompt = f"""Analiza estos tweets y devuelve UNICAMENTE un array JSON con los IDs de los que contienen {criterio}.
+        Solo devuelve el JSON, ejemplo: ["123", "456"]. Si no hay ninguno, responde: []
+        
+        Tweets:
+        {lista_tweets}"""
+
+        response = model.generate_content(prompt)
+        texto = response.text.strip().replace("```json", "").replace("```", "").strip()
+        return json.loads(texto), None
+
     except Exception as e:
-        return [], f"Error detectado: {str(e)}"
+        try:
+            modelos = [m.name for m in genai.list_models()]
+            return [], f"Error: {str(e)}. Modelos disponibles en tu cuenta: {modelos}"
+        except:
+            return [], f"Error de conexion con la IA: {str(e)}"
 
 @app.route("/")
 def index():
@@ -69,7 +63,9 @@ def index():
 @app.route("/callback")
 def callback():
     try:
-        url_segura = request.url.replace("http:", "https:", 1) if REDIRECT_URI.startswith("https") else request.url
+        url_segura = request.url
+        if REDIRECT_URI and REDIRECT_URI.startswith("https") and url_segura.startswith("http:"):
+            url_segura = url_segura.replace("http:", "https:", 1)
         access_token = oauth2_handler.fetch_token(url_segura)
         session["token"] = access_token
         return redirect(url_for("dashboard"))
@@ -78,51 +74,67 @@ def callback():
 
 @app.route("/dashboard")
 def dashboard():
-    if "token" not in session: return redirect(url_for("index"))
+    if "token" not in session:
+        return redirect(url_for("index"))
     return render_template("dashboard.html")
 
 @app.route("/analyze", methods=["POST"])
 def analyze():
-    if "token" not in session: return redirect(url_for("index"))
+    if "token" not in session:
+        return redirect(url_for("index"))
+
     palabra = request.form.get("palabra", "").strip().lower()
     temas = request.form.getlist("temas")
     archivo = request.files.get("archivo_tweets")
-    if not archivo: return "Error: sube un archivo .json", 400
+
+    if not archivo:
+        return "Error: sube un archivo .json", 400
 
     datos = json.load(archivo)
-    todos_los_tweets = [{"id": i.get("tweet",{}).get("id_str"), "texto": i.get("tweet",{}).get("full_text", "")} for i in datos if i.get("tweet",{}).get("id_str")]
+    todos_los_tweets = []
+    for item in datos:
+        t = item.get("tweet", {})
+        texto = t.get("full_text", "")
+        id_tweet = t.get("id_str")
+        if texto and id_tweet:
+            todos_los_tweets.append({"id": id_tweet, "texto": texto})
 
     polemicos = []
+
     if palabra:
         for tw in todos_los_tweets:
             if palabra in tw["texto"].lower():
                 polemicos.append({"id": tw["id"], "texto": tw["texto"], "motivo": f"Palabra clave: {palabra}"})
-        return render_template("resultados.html", polemicos=polemicos)
+        return render_template("resultados.html", polemicos=polemicos, error=None)
 
-    # Lotes pequeños y esperas para no quemar la cuota
-    TAMANO_LOTE = 10
+    TAMANO_LOTE = 25
     ids_polemicos_total = []
     error_ia = None
 
     for i in range(0, len(todos_los_tweets), TAMANO_LOTE):
         lote = todos_los_tweets[i:i + TAMANO_LOTE]
-        ids, error = analizar_lote_con_ia(lote, temas)
+        ids_encontrados, error = analizar_lote_con_ia(lote, temas)
         if error:
             error_ia = error
             break
-        ids_polemicos_total.extend(ids)
-        time.sleep(5)
+        ids_polemicos_total.extend(ids_encontrados)
+        if i + TAMANO_LOTE < len(todos_los_tweets):
+            time.sleep(5)
 
     mapa_tweets = {tw["id"]: tw["texto"] for tw in todos_los_tweets}
+    etiqueta = "Detectado por IA"
+
     for id_pol in ids_polemicos_total:
-        if id_pol in mapa_tweets:
-            polemicos.append({"id": id_pol, "texto": mapa_tweets[id_pol], "motivo": "Detectado por IA"})
+        id_str = str(id_pol)
+        if id_str in mapa_tweets:
+            polemicos.append({"id": id_str, "texto": mapa_tweets[id_str], "motivo": etiqueta})
 
     return render_template("resultados.html", polemicos=polemicos, error=error_ia)
 
 @app.route("/delete", methods=["POST"])
 def delete():
-    if "token" not in session: return redirect(url_for("index"))
+    if "token" not in session:
+        return redirect(url_for("index"))
     ids = request.form.getlist("ids_borrar")
     token_data = session["token"]
     access_token = token_data.get("access_token") if isinstance(token_data, dict) else token_data
@@ -133,7 +145,8 @@ def delete():
             client.delete_tweet(tid)
             borrados += 1
             time.sleep(0.4)
-        except: errores += 1
+        except:
+            errores += 1
     return render_template("resultado_borrado.html", borrados=borrados, errores=errores)
 
 @app.route("/logout")
@@ -142,4 +155,4 @@ def logout():
     return redirect(url_for("index"))
 
 if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 5000)))
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
