@@ -2,3 +2,4 @@ flask
 tweepy
 gunicorn
 werkzeug
+google-generativeai
