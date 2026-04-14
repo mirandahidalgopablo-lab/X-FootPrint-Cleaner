@@ -35,12 +35,11 @@ def callback():
         url_segura = request.url
         if REDIRECT_URI and REDIRECT_URI.startswith("https") and url_segura.startswith("http:"):
             url_segura = url_segura.replace("http:", "https:", 1)
-            
         access_token = oauth2_handler.fetch_token(url_segura)
         session['token'] = access_token
         return redirect(url_for('dashboard'))
     except Exception as e:
-        return f"Error de seguridad en login: {e}"
+        return f"Error: {e}"
 
 @app.route('/dashboard')
 def dashboard():
@@ -50,12 +49,12 @@ def dashboard():
 @app.route('/analyze', methods=['POST'])
 def analyze():
     if 'token' not in session: return redirect(url_for('index'))
-
+    
     palabra = request.form.get('palabra', '').strip().lower()
     temas = request.form.getlist('temas')
     archivo = request.files.get('archivo_tweets')
-
-    if not archivo: return "Por favor, sube un archivo .json válido.", 400
+    
+    if not archivo: return "Error: Sube un archivo .json", 400
     
     datos = json.load(archivo)
     polemicos = []
@@ -68,25 +67,26 @@ def analyze():
         es_polemico = False
         motivo = ""
 
-        if palabra == "" and not temas:
-            es_polemico = True
-            motivo = "Revisión general"
-
-        elif palabra != "" and palabra in texto.lower():
+        if palabra != "" and palabra in texto.lower():
             es_polemico = True
             motivo = f"Palabra clave: {palabra}"
-
-        elif temas:
+        
+        else:
             try:
-                prompt = f"Analiza si este tweet tiene un tono de {', '.join(temas)}. Responde solo SI o NO: '{texto}'"
+                if not palabra and not temas:
+                    prompt = f"Analiza si este tweet es ofensivo, tóxico, agresivo o inapropiado. Responde solo con la palabra SI o la palabra NO: '{texto}'"
+                else:
+                    prompt = f"¿Este tweet tiene un tono de {', '.join(temas)}? Responde solo con la palabra SI o la palabra NO: '{texto}'"
+                
                 response = ia_model.generate_content(prompt)
                 if "SI" in response.text.upper():
                     es_polemico = True
-                    motivo = "Detectado por IA (Tono)"
+                    motivo = "Auditado por IA"
+                
                 time.sleep(4)
             except:
                 time.sleep(4)
-                pass
+                continue
 
         if es_polemico:
             polemicos.append({'id': id_tweet, 'texto': texto, 'motivo': motivo})
@@ -96,17 +96,12 @@ def analyze():
 @app.route('/delete', methods=['POST'])
 def delete():
     if 'token' not in session: return redirect(url_for('index'))
-
     ids = request.form.getlist('ids_borrar')
     token_data = session['token']
     access_token = token_data.get('access_token') if isinstance(token_data, dict) else token_data
-
-    client = tweepy.Client(
-        access_token=access_token,
-        consumer_key=CLIENT_ID,
-        consumer_secret=CLIENT_SECRET
-    )
-
+    
+    client = tweepy.Client(access_token=access_token, consumer_key=CLIENT_ID, consumer_secret=CLIENT_SECRET)
+    
     borrados, errores = 0, 0
     for tid in ids:
         try:
@@ -115,7 +110,7 @@ def delete():
             time.sleep(0.5)
         except:
             errores += 1
-
+            
     return render_template('resultados_borrado.html', borrados=borrados, errores=errores)
 
 @app.route('/logout')
@@ -124,5 +119,4 @@ def logout():
     return redirect(url_for('index'))
 
 if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=port)
+    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 5000)))
