@@ -1,0 +1,35 @@
+{% extends "layout.html" %}
+{% block content %}
+
+<div class="step-label">Completado</div>
+<h1>Proceso finalizado</h1>
+
+<div class="stats-row mt-3">
+    <div class="stat-box">
+        <div class="stat-number" style="color: var(--success);">{{ borrados }}</div>
+        <div class="stat-label">Tweets eliminados</div>
+    </div>
+    {% if errores > 0 %}
+    <div class="stat-box">
+        <div class="stat-number" style="color: var(--danger);">{{ errores }}</div>
+        <div class="stat-label">No se pudieron borrar</div>
+    </div>
+    {% endif %}
+</div>
+
+{% if errores > 0 %}
+<div class="alert alert-warning">
+    Algunos tweets no se pudieron eliminar. Puede que ya hubieran sido borrados previamente o que el token haya expirado. Vuelve a iniciar sesion e intentalo de nuevo.
+</div>
+{% else %}
+<div class="alert alert-success">
+    Todos los tweets seleccionados han sido eliminados correctamente de tu cuenta.
+</div>
+{% endif %}
+
+<div class="flex-gap mt-3">
+    <a href="/dashboard" class="btn btn-primary">Analizar de nuevo</a>
+    <a href="/logout" class="btn btn-ghost">Cerrar sesion</a>
+</div>
+
+{% endblock %}

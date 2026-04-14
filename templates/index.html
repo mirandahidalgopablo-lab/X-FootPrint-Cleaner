@@ -1,0 +1,38 @@
+{% extends "layout.html" %}
+{% block content %}
+
+<div class="step-label">Paso 01</div>
+<h1>Limpia tu<br>huella digital</h1>
+<p class="mt-2" style="max-width: 480px; font-size: 1.05rem;">
+    Conecta tu cuenta de X, sube tu archivo de datos y elimina tweets que puedan comprometer tu imagen profesional.
+</p>
+
+<div class="divider"></div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1px; background: var(--border); border-radius: 8px; overflow: hidden; margin-bottom: 3rem;">
+    <div style="background: var(--surface); padding: 1.5rem;">
+        <div style="font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--accent); margin-bottom: 0.5rem;">01</div>
+        <div style="font-weight: 700; font-size: 0.95rem; margin-bottom: 0.4rem;">Autoriza</div>
+        <p style="font-size: 0.82rem;">Conecta tu cuenta via OAuth 2.0 seguro</p>
+    </div>
+    <div style="background: var(--surface); padding: 1.5rem;">
+        <div style="font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--accent); margin-bottom: 0.5rem;">02</div>
+        <div style="font-weight: 700; font-size: 0.95rem; margin-bottom: 0.4rem;">Analiza</div>
+        <p style="font-size: 0.82rem;">Sube tu archivo de X y filtra por categorias</p>
+    </div>
+    <div style="background: var(--surface); padding: 1.5rem;">
+        <div style="font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--accent); margin-bottom: 0.5rem;">03</div>
+        <div style="font-weight: 700; font-size: 0.95rem; margin-bottom: 0.4rem;">Elimina</div>
+        <p style="font-size: 0.82rem;">Borra los tweets seleccionados de forma permanente</p>
+    </div>
+</div>
+
+<div class="alert alert-warning" style="max-width: 480px;">
+    Tu archivo de datos nunca se almacena. Se procesa en memoria y se descarta inmediatamente.
+</div>
+
+<a href="{{ login_url }}" class="btn btn-primary" style="font-size: 0.9rem; padding: 1rem 2.2rem;">
+    Conectar con X
+</a>
+
+{% endblock %}
