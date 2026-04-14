@@ -2,24 +2,20 @@ import os
 import json
 import tweepy
 import time
+import google.generativeai as genai
 from flask import Flask, redirect, url_for, session, request, render_template
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
-app.secret_key = os.environ.get("SECRET_KEY", "clave_super_secreta_local")
+app.secret_key = os.environ.get("SECRET_KEY", "clave_secreta_provisional")
 CLIENT_ID = os.environ.get("CLIENT_ID")
 CLIENT_SECRET = os.environ.get("CLIENT_SECRET")
+REDIRECT_URI = os.environ.get("REDIRECT_URI")
 
-REDIRECT_URI = os.environ.get("REDIRECT_URI", "http://127.0.0.1:5000/callback")
-
-app.config['SESSION_COOKIE_HTTPONLY'] = True
-
-if REDIRECT_URI.startswith("https"):
-    app.config['SESSION_COOKIE_SECURE'] = True
-else:
-    os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
+genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+ia_model = genai.GenerativeModel('gemini-1.5-flash')
 
 oauth2_handler = tweepy.OAuth2UserHandler(
     client_id=CLIENT_ID,
@@ -36,89 +32,80 @@ def index():
 @app.route('/callback')
 def callback():
     try:
-        url_segura = request.url
-        if REDIRECT_URI and REDIRECT_URI.startswith("https") and url_segura.startswith("http:"):
-            url_segura = url_segura.replace("http:", "https:", 1)
-            
+        url_segura = request.url.replace("http:", "https:", 1) if "https" in REDIRECT_URI else request.url
         access_token = oauth2_handler.fetch_token(url_segura)
         session['token'] = access_token
         return redirect(url_for('dashboard'))
     except Exception as e:
-        return f"Error de seguridad en login: {e}"
+        return f"Error de seguridad: {e}"
 
 @app.route('/dashboard')
 def dashboard():
-    if 'token' not in session:
-        return redirect(url_for('index'))
+    if 'token' not in session: return redirect(url_for('index'))
     return render_template('dashboard.html')
 
 @app.route('/analyze', methods=['POST'])
 def analyze():
-    if 'token' not in session:
-        return redirect(url_for('index'))
+    if 'token' not in session: return redirect(url_for('index'))
 
     palabra = request.form.get('palabra', '').lower()
     temas = request.form.getlist('temas')
-
     archivo = request.files.get('archivo_tweets')
-    if not archivo or not archivo.filename.endswith('.json'):
-        return "Por favor, sube un archivo .json valido.", 400
 
+    if not archivo: return "Sube un archivo .json", 400
     datos = json.load(archivo)
-
+    
     polemicos = []
+
     for item in datos:
         t = item.get('tweet', {})
         texto = t.get('full_text', '')
         id_tweet = t.get('id_str')
-
         es_polemico = False
         motivo = ""
 
-        if palabra and palabra in texto.lower():
+        if not palabra and not temas:
             es_polemico = True
-            motivo = f"Palabra '{palabra}'"
-        elif any(tema.lower() in texto.lower() for tema in temas):
+            motivo = "Revisión general"
+
+        elif palabra and palabra in texto.lower():
             es_polemico = True
-            motivo = "Coincidencia de categoria"
+            motivo = f"Coincidencia: {palabra}"
+
+        elif temas:
+            try:
+                prompt = f"Analiza si este tweet tiene un tono de {', '.join(temas)}. Responde solo SI o NO: '{texto}'"
+                response = ia_model.generate_content(prompt)
+                if "SI" in response.text.upper():
+                    es_polemico = True
+                    motivo = "Detectado por IA (Tono)"
+                time.sleep(4)
+            except:
+                time.sleep(4)
+                pass
 
         if es_polemico:
             polemicos.append({'id': id_tweet, 'texto': texto, 'motivo': motivo})
 
-    return render_template('resultados.html', polemicos=polemicos[:100])
+    return render_template('resultados.html', polemicos=polemicos)
 
 @app.route('/delete', methods=['POST'])
 def delete():
-    if 'token' not in session:
-        return redirect(url_for('index'))
-
     ids = request.form.getlist('ids_borrar')
-
     token_data = session['token']
-    if isinstance(token_data, dict):
-        access_token = token_data.get('access_token')
-    else:
-        access_token = token_data
+    access_token = token_data.get('access_token') if isinstance(token_data, dict) else token_data
 
-    # Use OAuth2 user context (not bearer token) so the user can delete their own tweets
-    client = tweepy.Client(
-        access_token=access_token,
-        consumer_key=CLIENT_ID,
-        consumer_secret=CLIENT_SECRET
-    )
+    client = tweepy.Client(access_token=access_token, consumer_key=CLIENT_ID, consumer_secret=CLIENT_SECRET)
 
-    borrados = 0
-    errores = 0
+    borrados, errores = 0, 0
     for tid in ids:
         try:
             client.delete_tweet(tid)
             borrados += 1
-            time.sleep(0.3)
-        except Exception:
-            errores += 1
-            continue
+            time.sleep(0.5)
+        except: errores += 1
 
-    return render_template('resultado_borrado.html', borrados=borrados, errores=errores)
+    return render_template('resultados_borrado.html', borrados=borrados, errores=errores)
 
 @app.route('/logout')
 def logout():
@@ -126,5 +113,4 @@ def logout():
     return redirect(url_for('index'))
 
 if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=port)
+    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 5000)))
