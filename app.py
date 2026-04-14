@@ -25,7 +25,8 @@ oauth2_handler = tweepy.OAuth2UserHandler(
     client_id=CLIENT_ID,
     redirect_uri=REDIRECT_URI,
     scope=["tweet.read", "tweet.write", "users.read", "offline.access"],
-    client_secret=CLIENT_SECRET
+    client_secret=CLIENT_SECRET,
+    state="estado_seguro_fijo_123"
 )
 
 @app.route('/')
@@ -36,7 +37,11 @@ def index():
 @app.route('/callback')
 def callback():
     try:
-        access_token = oauth2_handler.fetch_token(request.url)
+        url_segura = request.url
+        if REDIRECT_URI and REDIRECT_URI.startswith("https") and url_segura.startswith("http:"):
+            url_segura = url_segura.replace("http:", "https:", 1)
+            
+        access_token = oauth2_handler.fetch_token(url_segura)
         session['token'] = access_token
         return redirect(url_for('dashboard'))
     except Exception as e:
