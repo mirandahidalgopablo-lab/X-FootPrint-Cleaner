@@ -91,23 +91,25 @@ def analyze():
 
     try:
         contenido_crudo = archivo.read().decode('utf-8')
+
+        inicio_json = contenido_crudo.find('[')
+        fin_json = contenido_crudo.rfind(']')
         
-        if contenido_crudo.startswith("window.YTD"):
-            inicio_json = contenido_crudo.find('[')
-            if inicio_json != -1:
-                contenido_crudo = contenido_crudo[inicio_json:]
-                
+        if inicio_json != -1 and fin_json != -1:
+
+            contenido_crudo = contenido_crudo[inicio_json:fin_json+1]
+            
         datos = json.loads(contenido_crudo)
     except Exception as e:
-        return f"<h3>Error leyendo el archivo</h3><p>El archivo está corrupto o no es un historial válido de Twitter.</p><p><b>Detalle técnico:</b> {str(e)}</p>", 400
+        return f"<h3>Error leyendo el archivo</h3><p>El archivo está corrupto o tiene basura al final.</p><p><b>Detalle técnico:</b> {str(e)}</p>", 400
 
-  
     todos_los_tweets = []
     for item in datos:
         if isinstance(item, dict) and "tweet" in item:
             t = item["tweet"]
             if "id_str" in t and "full_text" in t:
                 todos_los_tweets.append({"id": t["id_str"], "texto": t["full_text"]})
+                
 
     todos_los_tweets = todos_los_tweets[:20]
 
@@ -130,7 +132,7 @@ def analyze():
             error_ia = "Google ha bloqueado el acceso por hoy. Espera 24h o usa otra API KEY."
             break
         elif error == "MODELO_NO_ENCONTRADO":
-            error_ia = "Error de configuracion de Google (404). Intenta crear una API KEY en un proyecto nuevo."
+            error_ia = "Error de configuracion de Google (404). Revisa tu API KEY."
             break
         elif error:
             error_ia = error
