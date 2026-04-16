@@ -6,12 +6,11 @@
 <p class="mt-1" style="margin-bottom: 2.5rem;">Ningun campo es obligatorio. Si dejas todo en blanco, el sistema buscara solo por palabras clave.</p>
 
 <div id="setupForm">
-
     <div class="card">
         <label>Archivo de datos de X</label>
         <p style="font-size: 0.82rem; margin-bottom: 1rem;">
             Descarga tu historial desde <strong style="color: var(--text);">Configuracion de X &rarr; Tu cuenta &rarr; Descargar tus datos</strong>.
-            Sube directamente tu archivo <code style="font-family: var(--font-mono); color: var(--accent); font-size: 0.82rem;">tweets.js</code> o <code style="font-family: var(--font-mono); color: var(--accent); font-size: 0.82rem;">tweets.json</code>. ¡El sistema lo limpiará automáticamente!
+            Sube directamente tu archivo <code style="font-family: var(--font-mono); color: var(--accent); font-size: 0.82rem;">tweets.js</code>. ¡El sistema lo limpiará solo!
         </p>
         <input type="file" id="fileInput" accept=".js, .json" required>
     </div>
@@ -25,30 +24,12 @@
         <label>Categorias a detectar (opcional)</label>
         <p style="font-size: 0.82rem; margin-bottom: 1rem;">Marca los temas que quieras que el filtro tenga en cuenta al analizar tu historial.</p>
         <div class="checkbox-grid">
-            <label class="checkbox-item">
-                <input type="checkbox" name="temas" value="Racismo">
-                <span>Racismo</span>
-            </label>
-            <label class="checkbox-item">
-                <input type="checkbox" name="temas" value="Islamofobia">
-                <span>Islamofobia</span>
-            </label>
-            <label class="checkbox-item">
-                <input type="checkbox" name="temas" value="Machismo">
-                <span>Machismo</span>
-            </label>
-            <label class="checkbox-item">
-                <input type="checkbox" name="temas" value="Antisemitismo">
-                <span>Antisemitismo</span>
-            </label>
-            <label class="checkbox-item">
-                <input type="checkbox" name="temas" value="Homofobia">
-                <span>Homofobia</span>
-            </label>
-            <label class="checkbox-item">
-                <input type="checkbox" name="temas" value="Nazismo">
-                <span>Nazismo</span>
-            </label>
+            <label class="checkbox-item"><input type="checkbox" name="temas" value="Racismo"><span>Racismo</span></label>
+            <label class="checkbox-item"><input type="checkbox" name="temas" value="Islamofobia"><span>Islamofobia</span></label>
+            <label class="checkbox-item"><input type="checkbox" name="temas" value="Machismo"><span>Machismo</span></label>
+            <label class="checkbox-item"><input type="checkbox" name="temas" value="Antisemitismo"><span>Antisemitismo</span></label>
+            <label class="checkbox-item"><input type="checkbox" name="temas" value="Homofobia"><span>Homofobia</span></label>
+            <label class="checkbox-item"><input type="checkbox" name="temas" value="Nazismo"><span>Nazismo</span></label>
         </div>
     </div>
 
@@ -56,10 +37,9 @@
         <button id="btnStart" class="btn btn-primary">Analizar archivo</button>
         <a href="/" class="btn btn-ghost">Volver</a>
     </div>
-
 </div>
 
-<div id="log" class="card mt-3" style="display: none; font-family: monospace; font-size: 0.85rem; max-height: 250px; overflow-y: auto; background: #1a1a1a; color: #00ff00;"></div>
+<div id="log" class="card mt-3" style="display: none; font-family: monospace; font-size: 0.85rem; max-height: 200px; overflow-y: auto; background: #1a1a1a; color: #00ff00; padding: 15px;"></div>
 
 <form action="/delete" method="POST" id="deleteForm" class="card mt-3" style="display: none; border-left: 4px solid #e0245e;">
     <h3 style="color: #e0245e;">⚠️ Tweets Encontrados</h3>
@@ -86,44 +66,31 @@
             <div style="margin-bottom: 15px; padding: 10px; background: rgba(224, 36, 94, 0.05); border-radius: 5px;">
                 <span style="display: inline-block; padding: 2px 8px; font-size: 0.75rem; background: #e0245e; color: white; border-radius: 10px; margin-bottom: 8px;">${motivo}</span><br>
                 <label style="display: flex; gap: 10px; align-items: flex-start; cursor: pointer;">
-                    <input type="checkbox" name="ids_borrar" value="${tweet.id}" checked style="margin-top: 4px;">
+                    <input type="checkbox" name="ids_borrar" value="${tweet.id}" checked>
                     <i style="font-size: 0.9rem;">"${tweet.texto}"</i>
                 </label>
-            </div>
-        `;
+            </div>`;
     }
 
     btnStart.addEventListener('click', () => {
-        if (!fileInput.files.length) { alert("Sube el archivo de tweets primero"); return; }
-        
+        if (!fileInput.files.length) { alert("Sube el archivo primero"); return; }
         const file = fileInput.files[0];
         const reader = new FileReader();
-        
         btnStart.disabled = true;
-        btnStart.innerText = "Analizando...";
-        resultadosDiv.innerHTML = "";
-        deleteForm.style.display = 'none';
-        logBox.innerHTML = "";
-        
-        log(`Abriendo archivo (${Math.round(file.size / 1024)} KB)...`);
+        btnStart.innerText = "Procesando...";
+        log(`Leyendo archivo local...`);
 
         reader.onload = async function(e) {
             let text = e.target.result.trim();
-            log("Limpiando y leyendo historial...");
-            
-            if (text.startsWith("window.YTD")) {
-                const start = text.indexOf('[');
-                if (start !== -1) text = text.substring(start);
-            }
+            if (text.startsWith("window.YTD")) text = text.substring(text.indexOf('['));
             if (text.startsWith("{") && text.endsWith("]")) text = "[" + text;
 
             let todosLosTweets = [];
             try {
+                // Extractor manual de objetos para archivos gigantes
                 let i = 0;
                 while (i < text.length) {
                     while (i < text.length && /\s|,|;/.test(text[i])) i++;
-                    if (i >= text.length) break;
-                    
                     if (text[i] === '{') {
                         let llaves = 1, fin = i + 1, enString = false;
                         while (fin < text.length && llaves > 0) {
@@ -144,114 +111,49 @@
                         i = fin;
                     } else i++;
                 }
-                log(`✅ Historial listo: ${todosLosTweets.length} tweets encontrados.`);
-            } catch (err) {
-                log(`<span style="color:#ff4444">Error procesando: ${err}</span>`);
-                btnStart.disabled = false;
-                btnStart.innerText = "Analizar archivo";
-                return;
-            }
+                log(`✅ ${todosLosTweets.length} tweets listos.`);
+            } catch (err) { log("Error: " + err); return; }
 
-            const palabraBuscada = document.getElementById('palabraBuscada').value.trim().toLowerCase();
-            const temasCheckboxes = document.querySelectorAll('input[name="temas"]:checked');
-            const temas = Array.from(temasCheckboxes).map(cb => cb.value);
+            const palabra = document.getElementById('palabraBuscada').value.trim().toLowerCase();
+            const temas = Array.from(document.querySelectorAll('input[name="temas"]:checked')).map(cb => cb.value);
 
-            if (palabraBuscada) {
-                log(`🔍 Buscando palabra exacta: "${palabraBuscada}"...`);
-                let encontrados = 0;
+            // Búsqueda Manual
+            if (palabra) {
+                log(`🔍 Buscando palabra: "${palabra}"...`);
                 todosLosTweets.forEach(t => {
-                    if (t.texto.toLowerCase().includes(palabraBuscada)) {
-                        mostrarResultado(t, `Palabra clave: ${palabraBuscada}`);
-                        encontrados++;
-                    }
+                    if (t.texto.toLowerCase().includes(palabra)) mostrarResultado(t, "Coincidencia");
                 });
-                log(`Finalizado. ${encontrados} coincidencias encontradas.`);
-                btnStart.disabled = false;
-                btnStart.innerText = "Analizar archivo";
-                return; 
             }
 
-            if (temas.length === 0) {
-                log("⚠️ No has escrito palabras ni marcado categorías. Selecciona algo para buscar.");
-                btnStart.disabled = false;
-                btnStart.innerText = "Analizar archivo";
-                return;
-            }
-
-            const LOTE_SIZE = 15;
-            const tweetsAProcesar = todosLosTweets.slice(0, 1000); 
-            
-            log(`🚀 Conectando con Google Gemini...`);
-
-            let detenerProceso = false;
-
-            for (let i = 0; i < tweetsAProcesar.length; i += LOTE_SIZE) {
-                if (detenerProceso) break;
-
-                const lote = tweetsAProcesar.slice(i, i + LOTE_SIZE);
-                log(`⏳ Analizando bloque ${Math.floor(i/LOTE_SIZE)+1} (${i} al ${i + lote.length})...`);
-                
-                let reintentos = 3;
-                let exito = false;
-
-                while (reintentos > 0 && !exito) {
+            // Búsqueda IA (Súper Lotes de 400)
+            if (temas.length > 0) {
+                const LOTE_SIZE = 400;
+                log(`🚀 Analizando con IA en lotes de 400...`);
+                for (let i = 0; i < todosLosTweets.length; i += LOTE_SIZE) {
+                    const lote = todosLosTweets.slice(i, i + LOTE_SIZE);
+                    log(`Analizando bloque ${Math.floor(i/LOTE_SIZE)+1}...`);
                     try {
-                        const response = await fetch('/api/analyze_batch', {
+                        const res = await fetch('/api/analyze_batch', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ tweets: lote, temas: temas })
                         });
-                        
-                        if (!response.ok) throw new Error("HTTP " + response.status);
-                        
-                        const data = await response.json();
-                        
-                        if (data.error) {
-                            if (data.error.includes("Límite") || data.error.includes("429")) {
-                                log(`<span style="color:#ffff00">⚠️ Límite de Google alcanzado. Enfriando motor por 40 segundos... (Intento ${4-reintentos}/3)</span>`);
-                                await new Promise(r => setTimeout(r, 40000));
-                                reintentos--;
-                                continue;
-                            }
-                            log(`<span style="color:#ffaa00">Aviso: ${data.error}</span>`);
-                            break;
-                        }
-                        
-                        if (data.ids_polemicos.length > 0) {
-                            data.ids_polemicos.forEach(idPol => {
-                                const tw = lote.find(t => t.id === idPol);
-                                if(tw) mostrarResultado(tw, "Detectado por IA");
+                        const data = await res.json();
+                        if (data.ids_polemicos) {
+                            data.ids_polemicos.forEach(id => {
+                                const t = lote.find(x => x.id == id);
+                                if(t) mostrarResultado(t, "Detectado por IA");
                             });
                         }
-                        
-                        exito = true;
-                        await new Promise(r => setTimeout(r, 8000)); 
-                        
-                    } catch (error) {
-                        log(`<span style="color:#ffaa00">Micro-corte detectado. Reintentando...</span>`);
-                        await new Promise(r => setTimeout(r, 5000));
-                        reintentos--;
-                    }
-                }
-
-                if (!exito) {
-                    log(`<span style="color:#ff4444">❌ Error persistente de cuota. Google te ha bloqueado temporalmente. Deteniendo el análisis.</span>`);
-                    detenerProceso = true;
+                        await new Promise(r => setTimeout(r, 15000)); // 15s para no quemar la API
+                    } catch (err) { log("Error en lote: " + err); }
                 }
             }
-            
-            if (detenerProceso) {
-                log("<b>⚠️ Auditoría detenida por seguridad. Vuelve a intentarlo mañana con otra cuenta de Google.</b>");
-            } else {
-                log("<b>✅ Auditoría finalizada por completo.</b>");
-            }
-            
+            log("<b>✅ Finalizado.</b>");
             btnStart.disabled = false;
             btnStart.innerText = "Analizar archivo";
         };
-
         reader.readAsText(file);
     });
 </script>
-
 {% endblock %}
