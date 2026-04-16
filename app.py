@@ -1,6 +1,7 @@
 import os
 import json
 import tweepy
+import time
 from flask import Flask, redirect, url_for, session, request, render_template, jsonify
 import google.generativeai as genai
 from google.generativeai.types import HarmCategory, HarmBlockThreshold
@@ -97,16 +98,15 @@ def delete():
     borrados, errores = 0, 0
     for tid in ids:
         try:
-   
+      
             client.delete_tweet(tid)
             borrados += 1
             time.sleep(0.4)
         except Exception as e:
-            print(f"Error al borrar {tid}: {e}")
+            print(f"Error al borrar {tid}: {e}") 
             errores += 1
             
     return render_template("resultado_borrado.html", borrados=borrados, errores=errores)
-
 
 @app.route("/logout")
 def logout():
