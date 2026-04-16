@@ -5,38 +5,55 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - Auditoría de X</title>
     <style>
-        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
-        .box { border: 1px solid #ccc; padding: 20px; border-radius: 8px; margin-top: 20px; }
-        .btn { background: #1da1f2; color: white; padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; }
-        .btn:disabled { background: #ccc; cursor: not-allowed; }
-        #log { margin-top: 20px; padding: 10px; background: #f4f4f4; border-radius: 5px; max-height: 200px; overflow-y: auto; font-family: monospace; }
-        .result-item { margin-bottom: 10px; padding: 10px; border-left: 4px solid #e0245e; background: #fff5f5; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; background-color: #f5f8fa; color: #14171a; }
+        h1 { color: #1da1f2; border-bottom: 2px solid #1da1f2; padding-bottom: 10px; }
+        .box { background: white; border: 1px solid #e1e8ed; padding: 25px; border-radius: 10px; margin-top: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .btn { background: #1da1f2; color: white; padding: 12px 20px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 14px; transition: 0.2s; }
+        .btn:hover { background: #1a91da; }
+        .btn:disabled { background: #aab8c2; cursor: not-allowed; }
+        .btn-danger { background: #e0245e; }
+        .btn-danger:hover { background: #c81e53; }
+        input[type="text"] { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #ccd6dd; border-radius: 5px; box-sizing: border-box; }
+        #log { margin-top: 20px; padding: 15px; background: #14171a; color: #00ff00; border-radius: 5px; max-height: 250px; overflow-y: auto; font-family: 'Courier New', Courier, monospace; font-size: 13px; line-height: 1.5;}
+        .result-item { margin-bottom: 15px; padding: 15px; border-left: 5px solid #e0245e; background: #fff5f5; border-radius: 0 5px 5px 0; }
+        .badge { display: inline-block; padding: 3px 8px; font-size: 11px; background: #e0245e; color: white; border-radius: 10px; margin-bottom: 5px; }
     </style>
 </head>
 <body>
-    <h1>Bienvenido a tu Dashboard</h1>
-    <a href="/logout" style="color: red;">Cerrar sesión</a>
+    <h1>Panel de Auditoría de Tweets</h1>
+    <a href="/logout" style="color: #e0245e; text-decoration: none; font-weight: bold;">[ Cerrar sesión ]</a>
 
     <div class="box">
-        <h3>1. Sube tu archivo de X (tweets.js o .json)</h3>
-        <p>Tu ordenador leerá el archivo de forma segura. No hay límite de tamaño.</p>
-        <input type="file" id="fileInput" accept=".js, .json">
+        <h3>1. Carga tu Historial</h3>
+        <p style="color: #657786; font-size: 14px;">El archivo se procesará localmente en tu ordenador. No hay límites de tamaño y es 100% privado.</p>
+        <input type="file" id="fileInput" accept=".js, .json" style="margin-bottom: 20px;">
         
-        <h3>2. ¿Qué quieres buscar?</h3>
-        <input type="checkbox" id="tema1" value="machismo"> Machismo <br>
-        <input type="checkbox" id="tema2" value="racismo"> Racismo <br>
-        <input type="checkbox" id="tema3" value="insultos"> Insultos directos <br>
+        <hr style="border: 0; border-top: 1px solid #e1e8ed; margin: 20px 0;">
+
+        <h3>2. Opciones de Búsqueda</h3>
+        
+        <label><b>Opción A: Búsqueda rápida por palabra</b> (Inmediato, no usa IA)</label>
+        <input type="text" id="palabraBuscada" placeholder="Escribe una palabra exacta (ej: estúpido, odio...)">
+        
+        <br><br>
+        
+        <label><b>Opción B: Análisis Inteligente (IA)</b></label><br>
+        <div style="margin-top: 10px; color: #657786;">
+            <input type="checkbox" id="tema1" value="machismo o misoginia"> Machismo <br>
+            <input type="checkbox" id="tema2" value="racismo o xenofobia"> Racismo <br>
+            <input type="checkbox" id="tema3" value="insultos directos o acoso"> Insultos directos <br>
+        </div>
         
         <br>
-        <button id="btnStart" class="btn">Empezar Análisis Inteligente</button>
+        <button id="btnStart" class="btn">Iniciar Escaneo</button>
     </div>
 
     <div id="log" style="display: none;"></div>
 
     <form action="/delete" method="POST" id="deleteForm" style="display: none;" class="box">
-        <h3>Resultados Peligrosos Encontrados</h3>
+        <h3>⚠️ Tweets Encontrados</h3>
         <div id="resultadosDiv"></div>
-        <button type="submit" class="btn" style="background: #e0245e; margin-top: 15px;">Borrar seleccionados de X</button>
+        <button type="submit" class="btn btn-danger" style="margin-top: 15px;">Borrar seleccionados de mi cuenta</button>
     </form>
 
     <script>
@@ -52,41 +69,51 @@
             logBox.scrollTop = logBox.scrollHeight;
         }
 
+        function mostrarResultado(tweet, motivo) {
+            deleteForm.style.display = 'block';
+            resultadosDiv.innerHTML += `
+                <div class="result-item">
+                    <span class="badge">${motivo}</span><br>
+                    <label>
+                        <input type="checkbox" name="ids_borrar" value="${tweet.id}" checked>
+                        <i>"${tweet.texto}"</i>
+                    </label>
+                </div>
+            `;
+        }
+
         btnStart.addEventListener('click', () => {
-            if (!fileInput.files.length) { alert("Sube un archivo primero"); return; }
+            if (!fileInput.files.length) { alert("Sube el archivo de tweets primero"); return; }
             
             const file = fileInput.files[0];
             const reader = new FileReader();
             
             btnStart.disabled = true;
-            log(`Leyendo el archivo de ${file.size} bytes en tu ordenador...`);
+            resultadosDiv.innerHTML = "";
+            deleteForm.style.display = 'none';
+            logBox.innerHTML = "";
+            
+            log(`Abriendo archivo de ${Math.round(file.size / 1024)} KB...`);
 
             reader.onload = async function(e) {
                 let text = e.target.result.trim();
-                log("Archivo cargado en memoria. Limpiando formato de Twitter...");
+                log("Extrayendo datos de X...");
                 
-
                 if (text.startsWith("window.YTD")) {
                     const start = text.indexOf('[');
                     if (start !== -1) text = text.substring(start);
                 }
-                if (text.startsWith("{") && text.endsWith("]")) {
-                    text = "[" + text;
-                }
+                if (text.startsWith("{") && text.endsWith("]")) text = "[" + text;
 
                 let todosLosTweets = [];
                 try {
-
-                    log("Extrayendo tweets...");
                     let i = 0;
                     while (i < text.length) {
                         while (i < text.length && /\s|,|;/.test(text[i])) i++;
                         if (i >= text.length) break;
-
+                        
                         if (text[i] === '{') {
-                            let llaves = 1;
-                            let fin = i + 1;
-                            let enString = false;
+                            let llaves = 1, fin = i + 1, enString = false;
                             while (fin < text.length && llaves > 0) {
                                 if (text[fin] === '"' && text[fin-1] !== '\\') enString = !enString;
                                 if (!enString) {
@@ -95,22 +122,34 @@
                                 }
                                 fin++;
                             }
-                            let objStr = text.substring(i, fin);
                             try {
-                                let obj = JSON.parse(objStr);
+                                let obj = JSON.parse(text.substring(i, fin));
                                 let t = obj.tweet || obj;
                                 if ((t.id_str || t.id) && (t.full_text || t.text)) {
                                     todosLosTweets.push({ id: t.id_str || t.id, texto: t.full_text || t.text });
                                 }
                             } catch(e) {}
                             i = fin;
-                        } else {
-                            i++;
-                        }
+                        } else i++;
                     }
-                    log(`¡Éxito! Se encontraron ${todosLosTweets.length} tweets válidos.`);
+                    log(`✅ Se encontraron ${todosLosTweets.length} tweets válidos.`);
                 } catch (err) {
                     log(`<span style="color:red">Error procesando el archivo: ${err}</span>`);
+                    btnStart.disabled = false;
+                    return;
+                }
+
+                const palabraBuscada = document.getElementById('palabraBuscada').value.trim().toLowerCase();
+                if (palabraBuscada) {
+                    log(`🔍 Buscando coincidencias exactas para: "${palabraBuscada}"...`);
+                    let encontrados = 0;
+                    todosLosTweets.forEach(t => {
+                        if (t.texto.toLowerCase().includes(palabraBuscada)) {
+                            mostrarResultado(t, `Palabra clave: ${palabraBuscada}`);
+                            encontrados++;
+                        }
+                    });
+                    log(`Búsqueda manual terminada. ${encontrados} encontrados.`);
                     btnStart.disabled = false;
                     return;
                 }
@@ -120,68 +159,72 @@
                 if (document.getElementById('tema2').checked) temas.push(document.getElementById('tema2').value);
                 if (document.getElementById('tema3').checked) temas.push(document.getElementById('tema3').value);
 
-                const LOTE_SIZE = 25;
-                let encontrados = [];
+                if (temas.length === 0) {
+                    log("⚠️ No has seleccionado temas ni escrito palabras. Selecciona algo.");
+                    btnStart.disabled = false;
+                    return;
+                }
+
+                const LOTE_SIZE = 15;
+                const tweetsAProcesar = todosLosTweets.slice(0, 1000);
                 
-                log("Enviando lotes a la IA (Esto evitará que el servidor se caiga)...");
-                
-                const tweetsAProcesar = todosLosTweets.slice(0, 500); 
+                log(`🚀 Iniciando motor de IA para ${tweetsAProcesar.length} tweets...`);
 
                 for (let i = 0; i < tweetsAProcesar.length; i += LOTE_SIZE) {
                     const lote = tweetsAProcesar.slice(i, i + LOTE_SIZE);
-                    log(`Analizando tweets ${i} al ${i + lote.length}...`);
+                    log(`⏳ Analizando bloque ${Math.floor(i/LOTE_SIZE)+1} (${i} al ${i + lote.length})...`);
                     
-                    try {
-                        const response = await fetch('/api/analyze_batch', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ tweets: lote, temas: temas })
-                        });
-                        
-                        const data = await response.json();
-                        if (data.error) {
-                            log(`<span style="color:red">Error de IA: ${data.error}</span>`);
-                            break;
-                        }
-                        
-                        if (data.ids_polemicos.length > 0) {
-                            data.ids_polemicos.forEach(idPol => {
-                                const tweetOriginal = lote.find(t => t.id === idPol);
-                                if(tweetOriginal) {
-                                    encontrados.push(tweetOriginal);
+                    let reintentos = 3;
+                    let exito = false;
 
-                                    mostrarResultado(tweetOriginal);
-                                }
+                    while (reintentos > 0 && !exito) {
+                        try {
+                            const response = await fetch('/api/analyze_batch', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ tweets: lote, temas: temas })
                             });
+                            
+                            if (!response.ok) throw new Error("Fallo en servidor (HTTP " + response.status + ")");
+                            
+                            const data = await response.json();
+                            
+                            if (data.error) {
+                                log(`<span style="color:yellow">Aviso IA: ${data.error}</span>`);
+                                if (data.error.includes("Límite") || data.error.includes("429")) {
+                                    log("Pausando 10 segundos para dejar respirar a Google...");
+                                    await new Promise(r => setTimeout(r, 10000));
+                                    reintentos--;
+                                    continue;
+                                }
+                                break;
+                            }
+                            
+                            if (data.ids_polemicos.length > 0) {
+                                data.ids_polemicos.forEach(idPol => {
+                                    const tw = lote.find(t => t.id === idPol);
+                                    if(tw) mostrarResultado(tw, "Detectado por IA");
+                                });
+                            }
+                            
+                            exito = true;
+                            await new Promise(r => setTimeout(r, 6000)); 
+                            
+                        } catch (error) {
+                            log(`<span style="color:orange">Micro-corte detectado. Reintentando... (${reintentos} intentos)</span>`);
+                            await new Promise(r => setTimeout(r, 5000));
+                            reintentos--;
                         }
-                        
-                        await new Promise(r => setTimeout(r, 4000)); 
-                        
-                    } catch (error) {
-                        log(`<span style="color:red">Error de conexión con el servidor.</span>`);
-                        break;
                     }
+                    if (!exito) log(`<span style="color:red">Se saltó este lote tras varios errores. Seguimos...</span>`);
                 }
                 
-                log("<b>Análisis terminado.</b>");
+                log("<b>✅ Auditoría finalizada por completo.</b>");
                 btnStart.disabled = false;
             };
 
             reader.readAsText(file);
         });
-
-        function mostrarResultado(tweet) {
-            deleteForm.style.display = 'block';
-            resultadosDiv.innerHTML += `
-                <div class="result-item">
-                    <label>
-                        <input type="checkbox" name="ids_borrar" value="${tweet.id}" checked>
-                        <b>ID:</b> ${tweet.id} <br>
-                        <i>"${tweet.texto}"</i>
-                    </label>
-                </div>
-            `;
-        }
     </script>
 </body>
 </html>
