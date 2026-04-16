@@ -89,28 +89,62 @@ def analyze():
     if not archivo: 
         return "Error: sube un archivo", 400
 
+    # LECTOR BLINDADO A PRUEBA DE BALAS
     try:
-        contenido_crudo = archivo.read().decode('utf-8')
-
-        inicio_json = contenido_crudo.find('[')
-        fin_json = contenido_crudo.rfind(']')
+        contenido_crudo = archivo.read().decode('utf-8').strip()
         
-        if inicio_json != -1 and fin_json != -1:
+        if contenido_crudo.startswith("window.YTD"):
+            inicio = contenido_crudo.find('[')
+            if inicio != -1:
+                contenido_crudo = contenido_crudo[inicio:]
+                
+        datos = []
+        decoder = json.JSONDecoder()
+        idx = 0
+        longitud = len(contenido_crudo)
+        
+        while idx < longitud:
+            # Saltar espacios, comas y puntos y comas que ensucian el archivo
+            while idx < longitud and (contenido_crudo[idx].isspace() or contenido_crudo[idx] in [',', ';']):
+                idx += 1
+            if idx >= longitud:
+                break
+                
+            try:
+                # raw_decode extrae el JSON bloque a bloque 
+                obj, avance = decoder.raw_decode(contenido_crudo[idx:])
+                if isinstance(obj, list):
+                    datos.extend(obj)
+                else:
+                    datos.append(obj)
+                idx += avance
+            except Exception as e:
+                # Si falla pero ya tenemos datos leidos, cortamos y usamos lo que tenemos
+                if len(datos) > 0:
+                    break
+                else:
+                    raise Exception(f"Formato ilegible: {str(e)}")
+                    
+        if len(datos) == 0:
+            raise Exception("El archivo estaba vacío o no se reconoció el texto.")
 
-            contenido_crudo = contenido_crudo[inicio_json:fin_json+1]
-            
-        datos = json.loads(contenido_crudo)
     except Exception as e:
-        return f"<h3>Error leyendo el archivo</h3><p>El archivo está corrupto o tiene basura al final.</p><p><b>Detalle técnico:</b> {str(e)}</p>", 400
+        return f"<h3>Error leyendo el archivo</h3><p><b>Detalle técnico:</b> {str(e)}</p>", 400
 
+    # Extracción segura de tweets
     todos_los_tweets = []
     for item in datos:
-        if isinstance(item, dict) and "tweet" in item:
-            t = item["tweet"]
-            if "id_str" in t and "full_text" in t:
-                todos_los_tweets.append({"id": t["id_str"], "texto": t["full_text"]})
+        if isinstance(item, dict):
+            # A veces Twitter lo anida en {"tweet": {...}} y a veces lo pone suelto
+            t = item.get("tweet", item)
+            
+            id_str = t.get("id_str") or t.get("id")
+            texto = t.get("full_text") or t.get("text")
+            
+            if id_str and texto:
+                todos_los_tweets.append({"id": str(id_str), "texto": str(texto)})
                 
-
+    # LIMITAMOS A 20 PARA EVITAR EL TIMEOUT DE 60 SEGUNDOS DE RENDER
     todos_los_tweets = todos_los_tweets[:20]
 
     polemicos = []
@@ -129,7 +163,7 @@ def analyze():
         ids, error = analizar_lote_con_ia(lote, temas)
         
         if error == "CUOTA_AGOTADA":
-            error_ia = "Google ha bloqueado el acceso por hoy. Espera 24h o usa otra API KEY."
+            error_ia = "Google ha bloqueado el acceso por hoy. Espera unas horas."
             break
         elif error == "MODELO_NO_ENCONTRADO":
             error_ia = "Error de configuracion de Google (404). Revisa tu API KEY."
