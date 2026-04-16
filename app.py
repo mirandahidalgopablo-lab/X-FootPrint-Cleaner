@@ -49,20 +49,19 @@ def dashboard():
 @app.route("/api/analyze_batch", methods=["POST"])
 def analyze_batch():
     if "token" not in session: return jsonify({"error": "No autorizado"}), 401
-    if not GEMINI_API_KEY: return jsonify({"error": "Falta GEMINI_API_KEY en Render"}), 500
+    if not GEMINI_API_KEY: return jsonify({"error": "Falta la API KEY"}), 500
 
     datos = request.json
     tweets = datos.get("tweets", [])
     temas = datos.get("temas", [])
-
     if not tweets: return jsonify({"ids_polemicos": []})
 
     modelo = genai.GenerativeModel("gemini-flash-latest")
     lista_tweets = "\n".join([f'ID:"{tw["id"]}" | TEXTO: {tw["texto"]}' for tw in tweets])
-    criterio = f"contenido de {', '.join(temas)}" if temas else "contenido ofensivo, toxico o polemico"
+    criterio = f"contenido de {', '.join(temas)}" if temas else "contenido ofensivo o polemico"
 
-    prompt = f"""Analiza estos tweets y devuelve SOLO un array JSON con los IDs de los que sean {criterio}.
-    Si no hay ninguno, devuelve []. No escribas nada mas.
+    prompt = f"""Analiza estos tweets y devuelve SOLO un array JSON con los IDs de los que sean {criterio}. 
+    Devuelve [] si no hay nada. No escribas texto, solo el JSON.
     Tweets:
     {lista_tweets}"""
 
@@ -75,35 +74,27 @@ def analyze_batch():
                 HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
             }
         )
-        ids_detectados = json.loads(respuesta.text.strip())
-        return jsonify({"ids_polemicos": [str(i) for i in ids_detectados], "error": None})
+        return jsonify({"ids_polemicos": json.loads(respuesta.text.strip()), "error": None})
     except Exception as e:
-        error_msg = str(e)
-        if "429" in error_msg: return jsonify({"error": "Límite de Google alcanzado. Espera unos minutos."})
-        return jsonify({"error": error_msg})
+        return jsonify({"error": str(e)})
 
 @app.route("/delete", methods=["POST"])
 def delete():
     if "token" not in session: return redirect(url_for("index"))
-    
     ids = request.form.getlist("ids_borrar")
     token_data = session["token"]
-    
     access_token = token_data.get('access_token') if isinstance(token_data, dict) else token_data
     
-    import time
-
     client = tweepy.Client(bearer_token=access_token)
-    
     borrados, errores = 0, 0
+    
     for tid in ids:
         try:
-      
-            client.delete_tweet(tid)
+            client.delete_tweet(tid, user_auth=False)
             borrados += 1
-            time.sleep(0.4)
+            time.sleep(0.5)
         except Exception as e:
-            print(f"Error al borrar {tid}: {e}") 
+            print(f"Error al borrar {tid}: {e}")
             errores += 1
             
     return render_template("resultado_borrado.html", borrados=borrados, errores=errores)
