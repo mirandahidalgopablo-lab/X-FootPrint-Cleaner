@@ -45,7 +45,6 @@ def dashboard():
     if "token" not in session: return redirect(url_for("index"))
     return render_template("dashboard.html")
 
-# --- NUEVA API INTERNA PARA EL NAVEGADOR ---
 @app.route("/api/analyze_batch", methods=["POST"])
 def analyze_batch():
     if "token" not in session: return jsonify({"error": "No autorizado"}), 401
@@ -85,19 +84,29 @@ def analyze_batch():
 @app.route("/delete", methods=["POST"])
 def delete():
     if "token" not in session: return redirect(url_for("index"))
+    
     ids = request.form.getlist("ids_borrar")
     token_data = session["token"]
+    
     access_token = token_data.get('access_token') if isinstance(token_data, dict) else token_data
+    
     import time
-    client = tweepy.Client(access_token=access_token, consumer_key=CLIENT_ID, consumer_secret=CLIENT_SECRET)
-    borrados = 0
+
+    client = tweepy.Client(bearer_token=access_token)
+    
+    borrados, errores = 0, 0
     for tid in ids:
         try:
+   
             client.delete_tweet(tid)
             borrados += 1
-            time.sleep(0.3)
-        except: pass
-    return render_template("resultado_borrado.html", borrados=borrados, errores=len(ids)-borrados)
+            time.sleep(0.4)
+        except Exception as e:
+            print(f"Error al borrar {tid}: {e}")
+            errores += 1
+            
+    return render_template("resultado_borrado.html", borrados=borrados, errores=errores)
+
 
 @app.route("/logout")
 def logout():
