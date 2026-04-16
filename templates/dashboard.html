@@ -1,62 +1,187 @@
-{% extends "layout.html" %}
-{% block content %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Auditoría de X</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .box { border: 1px solid #ccc; padding: 20px; border-radius: 8px; margin-top: 20px; }
+        .btn { background: #1da1f2; color: white; padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; }
+        .btn:disabled { background: #ccc; cursor: not-allowed; }
+        #log { margin-top: 20px; padding: 10px; background: #f4f4f4; border-radius: 5px; max-height: 200px; overflow-y: auto; font-family: monospace; }
+        .result-item { margin-bottom: 10px; padding: 10px; border-left: 4px solid #e0245e; background: #fff5f5; }
+    </style>
+</head>
+<body>
+    <h1>Bienvenido a tu Dashboard</h1>
+    <a href="/logout" style="color: red;">Cerrar sesión</a>
 
-<div class="step-label">Paso 02</div>
-<h1>Configura el analisis</h1>
-<p class="mt-1" style="margin-bottom: 2.5rem;">Ningun campo es obligatorio. Si dejas todo en blanco, el sistema buscara solo por palabras clave.</p>
-
-<form action="/analyze" method="post" enctype="multipart/form-data">
-
-    <div class="card">
-        <label>Archivo de datos de X</label>
-        <p style="font-size: 0.82rem; margin-bottom: 1rem;">
-            Descarga tu historial desde <strong style="color: var(--text);">Configuracion de X &rarr; Tu cuenta &rarr; Descargar tus datos</strong>.
-            Dentro del .zip, busca el archivo <code style="font-family: var(--font-mono); color: var(--accent); font-size: 0.82rem;">tweets.js</code>, abrelo con el Bloc de Notas, borra la primera linea (la que empieza por <code style="font-family: var(--font-mono); color: var(--accent); font-size: 0.82rem;">window.YTD</code>) y guardalo como <code style="font-family: var(--font-mono); color: var(--accent); font-size: 0.82rem;">tweets.json</code>.
-        </p>
-        <input type="file" name="archivo_tweets" accept=".json" required>
+    <div class="box">
+        <h3>1. Sube tu archivo de X (tweets.js o .json)</h3>
+        <p>Tu ordenador leerá el archivo de forma segura. No hay límite de tamaño.</p>
+        <input type="file" id="fileInput" accept=".js, .json">
+        
+        <h3>2. ¿Qué quieres buscar?</h3>
+        <input type="checkbox" id="tema1" value="machismo"> Machismo <br>
+        <input type="checkbox" id="tema2" value="racismo"> Racismo <br>
+        <input type="checkbox" id="tema3" value="insultos"> Insultos directos <br>
+        
+        <br>
+        <button id="btnStart" class="btn">Empezar Análisis Inteligente</button>
     </div>
 
-    <div class="card">
-        <label>Palabra o frase especifica (opcional)</label>
-        <input type="text" name="palabra" placeholder="Ej: insulto, politica, nombre...">
-    </div>
+    <div id="log" style="display: none;"></div>
 
-    <div class="card">
-        <label>Categorias a detectar (opcional)</label>
-        <p style="font-size: 0.82rem; margin-bottom: 1rem;">Marca los temas que quieras que el filtro tenga en cuenta al analizar tu historial.</p>
-        <div class="checkbox-grid">
-            <label class="checkbox-item">
-                <input type="checkbox" name="temas" value="Racismo">
-                <span>Racismo</span>
-            </label>
-            <label class="checkbox-item">
-                <input type="checkbox" name="temas" value="Islamofobia">
-                <span>Islamofobia</span>
-            </label>
-            <label class="checkbox-item">
-                <input type="checkbox" name="temas" value="Machismo">
-                <span>Machismo</span>
-            </label>
-            <label class="checkbox-item">
-                <input type="checkbox" name="temas" value="Antisemitismo">
-                <span>Antisemitismo</span>
-            </label>
-            <label class="checkbox-item">
-                <input type="checkbox" name="temas" value="Homofobia">
-                <span>Homofobia</span>
-            </label>
-            <label class="checkbox-item">
-                <input type="checkbox" name="temas" value="Nazismo">
-                <span>Nazismo</span>
-            </label>
-        </div>
-    </div>
+    <form action="/delete" method="POST" id="deleteForm" style="display: none;" class="box">
+        <h3>Resultados Peligrosos Encontrados</h3>
+        <div id="resultadosDiv"></div>
+        <button type="submit" class="btn" style="background: #e0245e; margin-top: 15px;">Borrar seleccionados de X</button>
+    </form>
 
-    <div class="flex-gap mt-3">
-        <button type="submit" class="btn btn-primary">Analizar archivo</button>
-        <a href="/" class="btn btn-ghost">Volver</a>
-    </div>
+    <script>
+        const fileInput = document.getElementById('fileInput');
+        const btnStart = document.getElementById('btnStart');
+        const logBox = document.getElementById('log');
+        const resultadosDiv = document.getElementById('resultadosDiv');
+        const deleteForm = document.getElementById('deleteForm');
 
-</form>
+        function log(msg) {
+            logBox.style.display = 'block';
+            logBox.innerHTML += `<div>> ${msg}</div>`;
+            logBox.scrollTop = logBox.scrollHeight;
+        }
 
-{% endblock %}
+        btnStart.addEventListener('click', () => {
+            if (!fileInput.files.length) { alert("Sube un archivo primero"); return; }
+            
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+            
+            btnStart.disabled = true;
+            log(`Leyendo el archivo de ${file.size} bytes en tu ordenador...`);
+
+            reader.onload = async function(e) {
+                let text = e.target.result.trim();
+                log("Archivo cargado en memoria. Limpiando formato de Twitter...");
+                
+
+                if (text.startsWith("window.YTD")) {
+                    const start = text.indexOf('[');
+                    if (start !== -1) text = text.substring(start);
+                }
+                if (text.startsWith("{") && text.endsWith("]")) {
+                    text = "[" + text;
+                }
+
+                let todosLosTweets = [];
+                try {
+
+                    log("Extrayendo tweets...");
+                    let i = 0;
+                    while (i < text.length) {
+                        while (i < text.length && /\s|,|;/.test(text[i])) i++;
+                        if (i >= text.length) break;
+
+                        if (text[i] === '{') {
+                            let llaves = 1;
+                            let fin = i + 1;
+                            let enString = false;
+                            while (fin < text.length && llaves > 0) {
+                                if (text[fin] === '"' && text[fin-1] !== '\\') enString = !enString;
+                                if (!enString) {
+                                    if (text[fin] === '{') llaves++;
+                                    else if (text[fin] === '}') llaves--;
+                                }
+                                fin++;
+                            }
+                            let objStr = text.substring(i, fin);
+                            try {
+                                let obj = JSON.parse(objStr);
+                                let t = obj.tweet || obj;
+                                if ((t.id_str || t.id) && (t.full_text || t.text)) {
+                                    todosLosTweets.push({ id: t.id_str || t.id, texto: t.full_text || t.text });
+                                }
+                            } catch(e) {}
+                            i = fin;
+                        } else {
+                            i++;
+                        }
+                    }
+                    log(`¡Éxito! Se encontraron ${todosLosTweets.length} tweets válidos.`);
+                } catch (err) {
+                    log(`<span style="color:red">Error procesando el archivo: ${err}</span>`);
+                    btnStart.disabled = false;
+                    return;
+                }
+
+                const temas = [];
+                if (document.getElementById('tema1').checked) temas.push(document.getElementById('tema1').value);
+                if (document.getElementById('tema2').checked) temas.push(document.getElementById('tema2').value);
+                if (document.getElementById('tema3').checked) temas.push(document.getElementById('tema3').value);
+
+                const LOTE_SIZE = 25;
+                let encontrados = [];
+                
+                log("Enviando lotes a la IA (Esto evitará que el servidor se caiga)...");
+                
+                const tweetsAProcesar = todosLosTweets.slice(0, 500); 
+
+                for (let i = 0; i < tweetsAProcesar.length; i += LOTE_SIZE) {
+                    const lote = tweetsAProcesar.slice(i, i + LOTE_SIZE);
+                    log(`Analizando tweets ${i} al ${i + lote.length}...`);
+                    
+                    try {
+                        const response = await fetch('/api/analyze_batch', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ tweets: lote, temas: temas })
+                        });
+                        
+                        const data = await response.json();
+                        if (data.error) {
+                            log(`<span style="color:red">Error de IA: ${data.error}</span>`);
+                            break;
+                        }
+                        
+                        if (data.ids_polemicos.length > 0) {
+                            data.ids_polemicos.forEach(idPol => {
+                                const tweetOriginal = lote.find(t => t.id === idPol);
+                                if(tweetOriginal) {
+                                    encontrados.push(tweetOriginal);
+
+                                    mostrarResultado(tweetOriginal);
+                                }
+                            });
+                        }
+                        
+                        await new Promise(r => setTimeout(r, 4000)); 
+                        
+                    } catch (error) {
+                        log(`<span style="color:red">Error de conexión con el servidor.</span>`);
+                        break;
+                    }
+                }
+                
+                log("<b>Análisis terminado.</b>");
+                btnStart.disabled = false;
+            };
+
+            reader.readAsText(file);
+        });
+
+        function mostrarResultado(tweet) {
+            deleteForm.style.display = 'block';
+            resultadosDiv.innerHTML += `
+                <div class="result-item">
+                    <label>
+                        <input type="checkbox" name="ids_borrar" value="${tweet.id}" checked>
+                        <b>ID:</b> ${tweet.id} <br>
+                        <i>"${tweet.texto}"</i>
+                    </label>
+                </div>
+            `;
+        }
+    </script>
+</body>
+</html>
