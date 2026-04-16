@@ -59,7 +59,7 @@
 
 </div>
 
-<div id="log" class="card mt-3" style="display: none; font-family: monospace; font-size: 0.85rem; max-height: 200px; overflow-y: auto; background: #1a1a1a; color: #00ff00;"></div>
+<div id="log" class="card mt-3" style="display: none; font-family: monospace; font-size: 0.85rem; max-height: 250px; overflow-y: auto; background: #1a1a1a; color: #00ff00;"></div>
 
 <form action="/delete" method="POST" id="deleteForm" class="card mt-3" style="display: none; border-left: 4px solid #e0245e;">
     <h3 style="color: #e0245e;">⚠️ Tweets Encontrados</h3>
@@ -152,12 +152,10 @@
                 return;
             }
 
-            // RECOGER DATOS DEL DISEÑO ORIGINAL
             const palabraBuscada = document.getElementById('palabraBuscada').value.trim().toLowerCase();
             const temasCheckboxes = document.querySelectorAll('input[name="temas"]:checked');
             const temas = Array.from(temasCheckboxes).map(cb => cb.value);
 
-            // BÚSQUEDA RÁPIDA (Palabra clave manual)
             if (palabraBuscada) {
                 log(`🔍 Buscando palabra exacta: "${palabraBuscada}"...`);
                 let encontrados = 0;
@@ -173,7 +171,6 @@
                 return; 
             }
 
-            // BÚSQUEDA IA
             if (temas.length === 0) {
                 log("⚠️ No has escrito palabras ni marcado categorías. Selecciona algo para buscar.");
                 btnStart.disabled = false;
@@ -186,7 +183,11 @@
             
             log(`🚀 Conectando con Google Gemini...`);
 
+            let detenerProceso = false;
+
             for (let i = 0; i < tweetsAProcesar.length; i += LOTE_SIZE) {
+                if (detenerProceso) break;
+
                 const lote = tweetsAProcesar.slice(i, i + LOTE_SIZE);
                 log(`⏳ Analizando bloque ${Math.floor(i/LOTE_SIZE)+1} (${i} al ${i + lote.length})...`);
                 
@@ -207,8 +208,8 @@
                         
                         if (data.error) {
                             if (data.error.includes("Límite") || data.error.includes("429")) {
-                                log("Pausa de seguridad (10s) por límite de Google...");
-                                await new Promise(r => setTimeout(r, 10000));
+                                log(`<span style="color:#ffff00">⚠️ Límite de Google alcanzado. Enfriando motor por 40 segundos... (Intento ${4-reintentos}/3)</span>`);
+                                await new Promise(r => setTimeout(r, 40000));
                                 reintentos--;
                                 continue;
                             }
@@ -224,7 +225,7 @@
                         }
                         
                         exito = true;
-                        await new Promise(r => setTimeout(r, 6000)); 
+                        await new Promise(r => setTimeout(r, 8000)); 
                         
                     } catch (error) {
                         log(`<span style="color:#ffaa00">Micro-corte detectado. Reintentando...</span>`);
@@ -232,9 +233,19 @@
                         reintentos--;
                     }
                 }
+
+                if (!exito) {
+                    log(`<span style="color:#ff4444">❌ Error persistente de cuota. Google te ha bloqueado temporalmente. Deteniendo el análisis.</span>`);
+                    detenerProceso = true;
+                }
             }
             
-            log("<b>✅ Auditoría finalizada por completo.</b>");
+            if (detenerProceso) {
+                log("<b>⚠️ Auditoría detenida por seguridad. Vuelve a intentarlo mañana con otra cuenta de Google.</b>");
+            } else {
+                log("<b>✅ Auditoría finalizada por completo.</b>");
+            }
+            
             btnStart.disabled = false;
             btnStart.innerText = "Analizar archivo";
         };
